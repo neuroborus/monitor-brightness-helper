@@ -1,196 +1,154 @@
-# Monitor Brightness Helper (Wayland + GNOME)
+# Monitor Brightness Helper
 
-This repository contains a small helper script for controlling monitor brightness
-on GNOME/Wayland using [`gnome-gamma-tool`](https://github.com/zb3/gnome-gamma-tool).
+## Quickstart
 
-The script is intended to be used with **custom hotkeys** or a **keyboard wheel/encoder**
-(for example, the left knob on a Keychron Q11), but it can also be invoked directly
-from the terminal.
+1. Clone the repository:
 
----
+   ```bash
+   git clone <repo-url>
+   cd monitor-brightness-helper
+   chmod +x monitor-brightness-gnome.sh monitor-brightness-kde.sh
+   ```
 
-## Features
+2. Copy the shared config and edit it:
 
-- Adjusts brightness in small incremental steps.
-- Works on GNOME/Wayland via `gnome-gamma-tool`.
-- Stores the last brightness value in a state file.
-- Can be bound to any keys (F-keys, media keys, encoder wheel, etc.).
+   ```bash
+   mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/monitor-brightness-helper"
+   cp monitor-brightness.conf "${XDG_CONFIG_HOME:-$HOME/.config}/monitor-brightness-helper/config.sh"
+   ```
 
----
+3. Choose the backend script:
 
-## Requirements
+   ```bash
+   ./monitor-brightness-gnome.sh up
+   ./monitor-brightness-gnome.sh down
+   ./monitor-brightness-kde.sh up
+   ./monitor-brightness-kde.sh down
+   ```
 
-- GNOME on Wayland (tested on Ubuntu).
-- Python 3.
+Both scripts use the same config file and the same logical brightness scale: `20..100` percent by default.
+
+## What It Does
+
+This repository contains two small Wayland helper scripts:
+
+- `monitor-brightness-gnome.sh` for GNOME via `gnome-gamma-tool`
+- `monitor-brightness-kde.sh` for KDE via `kscreen-doctor` or KWin gamma
+
+The scripts are meant for custom shortcuts, macro keys, or encoder wheels, but they also work directly from the terminal.
+
+## Shared Configuration
+
+The scripts look for configuration in this order:
+
+1. `$MONITOR_BRIGHTNESS_CONFIG`
+2. `${XDG_CONFIG_HOME:-$HOME/.config}/monitor-brightness-helper/config.sh`
+3. `./monitor-brightness.conf` next to the scripts
+
+Default config:
+
+```bash
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/monitor-brightness-helper"
+
+STEP=5
+MIN=20
+MAX=100
+
+GNOME_TOOL="$HOME/opt/gnome-gamma-tool/gnome-gamma-tool.py"
+GNOME_DISPLAY_INDEX=1
+
+KDE_OUTPUT_NAME="DP-1"
+KDE_METHOD="auto"
+```
+
+Notes:
+
+- `STEP`, `MIN`, and `MAX` are shared by both backends and are always expressed in percent.
+- State is stored separately per backend in `STATE_DIR`.
+- GNOME converts the percent value to the `0.000..1.000` scale expected by `gnome-gamma-tool`.
+
+## GNOME Setup
+
+Requirements:
+
+- GNOME on Wayland
+- `python3`
 - `git`
-- `gir1.2-colord-1.0` (required by `gnome-gamma-tool`)
+- `gir1.2-colord-1.0`
 
-Install the required packages:
+Install dependencies:
 
 ```bash
 sudo apt update
 sudo apt install -y git python3 gir1.2-colord-1.0
 ```
 
----
-
-## Installation
-
-1. **Clone and set up `gnome-gamma-tool`:**
-
-   ```bash
-   mkdir -p ~/opt
-   cd ~/opt
-   git clone https://github.com/zb3/gnome-gamma-tool.git
-   cd gnome-gamma-tool
-   chmod +x gnome-gamma-tool.py
-   ```
-
-2. **Place the brightness script:**
-
-   Save the script file as:
-
-   ```text
-   ~/.local/bin/monitor-brightness.sh
-   ```
-
-   and make it executable:
-
-   ```bash
-   chmod +x ~/.local/bin/monitor-brightness.sh
-   ```
-
-   > The script expects `gnome-gamma-tool.py` to live at:
-   > `~/opt/gnome-gamma-tool/gnome-gamma-tool.py`
-
----
-
-## Configuration
-
-### Choosing the correct display index
-
-The script uses a `DISPLAY_INDEX` (passed to `gnome-gamma-tool` as `-d N`),
-so that you can specifically target your external monitor (for example, a
-Samsung Odyssey G9 connected to a laptop).
-
-You can discover the correct index by running:
+Install `gnome-gamma-tool`:
 
 ```bash
-python3 ~/opt/gnome-gamma-tool/gnome-gamma-tool.py -d 0 -b 0.9
-python3 ~/opt/gnome-gamma-tool/gnome-gamma-tool.py -d 1 -b 0.9
-python3 ~/opt/gnome-gamma-tool/gnome-gamma-tool.py -d 2 -b 0.9
+mkdir -p ~/opt
+cd ~/opt
+git clone https://github.com/zb3/gnome-gamma-tool.git
+chmod +x ~/opt/gnome-gamma-tool/gnome-gamma-tool.py
 ```
 
-Whichever display dims is the one you should set as `DISPLAY_INDEX`
-in `monitor-brightness.sh`.
-
-You can also tune:
-
-- `STEP` – how much brightness changes per step (e.g. `0.05`).
-- `MIN` / `MAX` – allowed brightness range (0–1).
-
----
-
-## CLI usage
-
-You can call the script directly from a terminal:
+Choose `GNOME_DISPLAY_INDEX` by testing outputs:
 
 ```bash
-~/.local/bin/monitor-brightness.sh up
-~/.local/bin/monitor-brightness.sh down
+python3 ~/opt/gnome-gamma-tool/gnome-gamma-tool.py -d 0 -b 0.900
+python3 ~/opt/gnome-gamma-tool/gnome-gamma-tool.py -d 1 -b 0.900
+python3 ~/opt/gnome-gamma-tool/gnome-gamma-tool.py -d 2 -b 0.900
 ```
 
-This is useful for quick testing before binding shortcuts.
+Use the index of the monitor that actually changes brightness.
 
----
+## KDE Setup
 
-## Example: binding to a keyboard wheel (Keychron Q11)
+Requirements depend on the selected method:
 
-Below is a concrete example of how to integrate the script with:
+- `kscreen-doctor` for per-output brightness
+- or `qdbus6` / `qdbus-qt6` / `qdbus` for KWin gamma fallback
 
-- the **left encoder wheel** (rotate up/down), and
-- **Fn+F1 / Fn+F2**,
+KDE config variables:
 
-so that all of them trigger the same brightness actions.
+- `KDE_OUTPUT_NAME`: output name from `kscreen-doctor -o`
+- `KDE_METHOD="kscreen"`: only `kscreen-doctor`
+- `KDE_METHOD="gamma"`: only KWin gamma
+- `KDE_METHOD="auto"`: try `kscreen-doctor`, then fallback to gamma
 
-### 1. Map keys in Keychron Launcher
+To find the output name:
 
-Open [Keychron Launcher](https://launcher.keychron.com) and select your **Q11**.
+```bash
+kscreen-doctor -o
+```
 
-1. **Fn layer (Layer 1)**
+## Shortcuts
 
-   - Select **Layer 1** at the top.
-   - Click key **F1** and on the bottom bar (`Basic` tab) assign **F15**.
-   - Click key **F2** and assign **F16**.
+Both backends expose the same CLI:
 
-   Now:
+```bash
+./monitor-brightness-gnome.sh up
+./monitor-brightness-gnome.sh down
+./monitor-brightness-kde.sh up
+./monitor-brightness-kde.sh down
+```
 
-   - `Fn + F1` sends `F15` → brightness down.
-   - `Fn + F2` sends `F16` → brightness up.
+That makes shortcut binding straightforward. Example commands:
 
-2. **Left encoder wheel**
+```bash
+bash -lc "$HOME/path/to/monitor-brightness-helper/monitor-brightness-gnome.sh down"
+bash -lc "$HOME/path/to/monitor-brightness-helper/monitor-brightness-gnome.sh up"
+```
 
-   Still on **Layer 1**:
+and for KDE:
 
-   - Click the left segment of the left wheel (normally `Vol-`) and assign **F15**.
-   - Click the right segment of the left wheel (normally `Vol+`) and assign **F16**.
+```bash
+bash -lc "$HOME/path/to/monitor-brightness-helper/monitor-brightness-kde.sh down"
+bash -lc "$HOME/path/to/monitor-brightness-helper/monitor-brightness-kde.sh up"
+```
 
-   Switch to **Layer 0** and repeat:
+## Notes
 
-   - Left segment of the left wheel → **F15**.
-   - Right segment of the left wheel → **F16**.
-
-Result:
-
-- Wheel down → `F15`
-- Wheel up → `F16`
-- `Fn+F1` → `F15`
-- `Fn+F2` → `F16`
-
-All of them will be treated identically by GNOME.
-
----
-
-### 2. Create GNOME custom shortcuts
-
-Open:
-
-> **Settings → Keyboard → Keyboard Shortcuts → Custom Shortcuts**
-
-Create two shortcuts:
-
-#### Brightness Down
-
-- **Name:** `Brightness Down`
-- **Command:**
-
-  ```bash
-  bash -lc "$HOME/.local/bin/monitor-brightness.sh down"
-  ```
-
-- Click on the shortcut key field and **rotate the wheel down**
-  (or press `Fn+F1`). GNOME should show something like `F15` as the key.
-
-#### Brightness Up
-
-- **Name:** `Brightness Up`
-- **Command:**
-
-  ```bash
-  bash -lc "$HOME/.local/bin/monitor-brightness.sh up"
-  ```
-
-- Click on the shortcut key field and **rotate the wheel up**
-  (or press `Fn+F2`). GNOME should show something like `F16`.
-
----
-
-## Result
-
-After this setup:
-
-- Rotating the left encoder wheel adjusts the brightness of your external monitor.
-- `Fn+F1` / `Fn+F2` do the same thing as the wheel.
-- The script remembers the last brightness value and works reliably on GNOME/Wayland
-  without relying on DDC/CI, which may not be available when using USB-C/Thunderbolt
-  docks or adapters.
+- This approach is useful when DDC/CI is unavailable or unreliable.
+- The scripts keep the last logical brightness value and apply deltas from there.
+- If KDE fails in `auto` mode, verify both `kscreen-doctor -o` and DBus availability.
